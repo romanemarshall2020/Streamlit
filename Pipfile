@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+langgraph = "*"
+langgraph-sdk = "*"
+langgraph-checkpoint-sqlite = "*"
+langsmith = "*"
+langchain-community = "*"
+langchain-core = "*"
+langchain-openai = "*"
+notebook = "*"
+tavily-python = "*"
+wikipedia = "*"
+trustcall = "*"
+langgraph-cli = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"
