@@ -16,6 +16,8 @@ tavily-python = "*"
 wikipedia = "*"
 trustcall = "*"
 langgraph-cli = "*"
+streamlit = "*"
+streamlit_model = "*"
 
 [dev-packages]
 

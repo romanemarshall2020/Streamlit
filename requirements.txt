@@ -10,3 +10,5 @@ tavily-python
 wikipedia
 trustcall
 langgraph-cli
+streamlit
+streamlit_modal

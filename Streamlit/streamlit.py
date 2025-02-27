@@ -5,18 +5,18 @@ import ast
 
 class FileExplorerEditor:
     def __init__(self):
-        self.modal= Modal("Confirm Navigation", key="modal_key")
-
+        """Initialize session state variables."""
         if "current_path" not in st.session_state:
             st.session_state.current_path = os.getcwd()
         if "selected_file" not in st.session_state:
             st.session_state.selected_file = None
         if "file_content" not in st.session_state:
             st.session_state.file_content = ""
-        if "original_contents" not in st.session_state:
-            st.session_state.original_contents = ""
         if "unsaved_changes" not in st.session_state:
             st.session_state.unsaved_changes = False
+        # IMPORTANT: Start with navigation not confirmed
+        if "confirm_navigation" not in st.session_state:
+            st.session_state.confirm_navigation = False
         # Flag to control modal display
         if "show_modal" not in st.session_state:
             st.session_state.show_modal = False
@@ -39,6 +39,7 @@ class FileExplorerEditor:
             st.session_state.current_path = parent_dir
             st.session_state.selected_file = None
             # Reset flags
+            st.session_state.confirm_navigation = False
             st.session_state.show_modal = False
             st.rerun()
 
@@ -49,15 +50,7 @@ class FileExplorerEditor:
         """
         # If the flag is set, open the modal
         # Render modal content if open
-        if st.session_state.show_modal:
-            with self.modal.container():
-                st.warning(
-                    "You have unsaved changes to the current file, please save or revert your changes before going back.")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Close"):
-                        st.session_state.show_modal = False
-                        self.modal.close()
+
 
     def select_folder(self, folder_path):
         """Set the selected folder as the current path."""
@@ -71,7 +64,6 @@ class FileExplorerEditor:
             with open(file_path, "r", encoding="utf-8") as f:
                 st.session_state.file_content = f.read()
             st.session_state.selected_file = file_path
-            st.session_state.original_contents = st.session_state.file_content
             st.rerun()
         except Exception as e:
             st.error(f"Error reading file: {e}")
@@ -113,16 +105,38 @@ class FileExplorerEditor:
             # Navigate up button
             if os.path.dirname(st.session_state.current_path) != st.session_state.current_path:
                 if st.button("🔙 Go Back"):
-                   if st.session_state.unsaved_changes:
-                        try:
-                            self.modal.open()
-                        except:
-                            st.error(f"Modal population failed with the following error")
-                        finally:
+                    # If there are unsaved changes, set the flag to show modal
+                    if st.session_state.unsaved_changes:
+                        modal = Modal("Confirm Navigation", key="modal_key")
+                        if st.button("Modal"):
+                            modal.open()
                             st.session_state.show_modal = True
-                            self.unsaved_changes_handle()
-                   if not st.session_state.unsaved_changes:
+
+                        if st.session_state.show_modal:
+                            with modal.container():
+                                st.warning(
+                                    "You have unsaved changes to the current file, are you sure you want to go back without saving?")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("Yes, Go Back"):
+                                        st.warning("Please save or revert your changes.")
+                                        st.session_state.confirm_navigation = True  # Reset confirmation
+                                        st.session_state.show_modal = False
+                                        modal.close()
+                                with col2:
+                                    if st.button("Cancel"):
+                                        st.session_state.confirm_navigation = False  # Cancel confirmation
+                                        st.session_state.show_modal = False
+                                        modal.close()
+
+                    else:
                         self.navigate_back()
+
+                    # If the modal flag is active, render the modal (it will block further actions until resolved)
+                    if st.session_state.confirm_navigation:
+                        self.unsaved_changes_handle()
+                        # Do not process further until modal decision is made
+                        return
 
             # Display current directory
             st.write(f"**Current Directory:** `{st.session_state.current_path}`")
@@ -147,28 +161,19 @@ class FileExplorerEditor:
 
             if st.session_state.selected_file:
                 st.write(f"**Editing:** `{st.session_state.selected_file}`")
-                new_content = st.text_area("Edit file:", st.session_state.file_content, height=600)
+                new_content = st.text_area("Edit file:", st.session_state.file_content, height=400)
 
                 if new_content != st.session_state.file_content:
                     st.session_state.unsaved_changes = True
                 else:
                     st.session_state.unsaved_changes = False
 
-                col_save, col_revert = st.columns(2)
-                with col_save:
-                    if st.button("💾 Save Changes"):
-                        self.save_file(new_content)
-                with col_revert:
-                    if st.button("↩ Revert Changes"):
-                        try:
-                            st.session_state.unsaved_changes = False
-                            st.session_state.file_content = st.session_state.original_contents
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error reverting file: {e}")
+                if st.button("💾 Save Changes"):
+                    self.save_file(new_content)
             else:
                 st.info("Select a file to edit.")
 
-
-app = FileExplorerEditor()
-app.render()
+# Run the app
+if __name__ == "__main__":
+    app = FileExplorerEditor()
+    app.render()
