@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_modal import Modal
 import os
 import ast
 
@@ -14,12 +13,8 @@ class FileExplorerEditor:
             st.session_state.file_content = ""
         if "unsaved_changes" not in st.session_state:
             st.session_state.unsaved_changes = False
-        # IMPORTANT: Start with navigation not confirmed
         if "confirm_navigation" not in st.session_state:
             st.session_state.confirm_navigation = False
-        # Flag to control modal display
-        if "show_modal" not in st.session_state:
-            st.session_state.show_modal = False
 
     def list_dir_contents(self, directory):
         """List directories and files in the given path."""
@@ -38,19 +33,22 @@ class FileExplorerEditor:
         if parent_dir != st.session_state.current_path:
             st.session_state.current_path = parent_dir
             st.session_state.selected_file = None
-            # Reset flags
             st.session_state.confirm_navigation = False
-            st.session_state.show_modal = False
             st.rerun()
 
-    def unsaved_changes_handle(self):
-        """
-        Render the modal asking if the user wants to navigate back despite unsaved changes.
-        This function should be called every render if the modal flag is active.
-        """
-        # If the flag is set, open the modal
-        # Render modal content if open
-
+    @st.dialog("Confirm Navigation")
+    def unsaved_changes_dialog(self):
+        """Dialog for handling unsaved changes."""
+        st.warning("You have unsaved changes to the current file. Are you sure you want to go back without saving?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Yes, Go Back"):
+                st.session_state.confirm_navigation = True
+                st.rerun()
+        with col2:
+            if st.button("Cancel"):
+                st.session_state.confirm_navigation = False
+                st.rerun()
 
     def select_folder(self, folder_path):
         """Set the selected folder as the current path."""
@@ -59,11 +57,17 @@ class FileExplorerEditor:
         st.rerun()
 
     def select_file(self, file_path):
-        """Load file content into session state."""
+        if st.session_state.unsaved_changes:
+            st.error("You have unsaved changes. Please save or revert your changes before selecting another file.")
+            return
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
-                st.session_state.file_content = f.read()
+                content = f.read()
+            st.session_state.file_content = content
+            st.session_state.original_content = content
             st.session_state.selected_file = file_path
+            st.session_state.unsaved_changes = False
             st.rerun()
         except Exception as e:
             st.error(f"Error reading file: {e}")
@@ -105,38 +109,14 @@ class FileExplorerEditor:
             # Navigate up button
             if os.path.dirname(st.session_state.current_path) != st.session_state.current_path:
                 if st.button("🔙 Go Back"):
-                    # If there are unsaved changes, set the flag to show modal
                     if st.session_state.unsaved_changes:
-                        modal = Modal("Confirm Navigation", key="modal_key")
-                        if st.button("Modal"):
-                            modal.open()
-                            st.session_state.show_modal = True
-
-                        if st.session_state.show_modal:
-                            with modal.container():
-                                st.warning(
-                                    "You have unsaved changes to the current file, are you sure you want to go back without saving?")
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.button("Yes, Go Back"):
-                                        st.warning("Please save or revert your changes.")
-                                        st.session_state.confirm_navigation = True  # Reset confirmation
-                                        st.session_state.show_modal = False
-                                        modal.close()
-                                with col2:
-                                    if st.button("Cancel"):
-                                        st.session_state.confirm_navigation = False  # Cancel confirmation
-                                        st.session_state.show_modal = False
-                                        modal.close()
-
+                        self.unsaved_changes_dialog()
                     else:
                         self.navigate_back()
 
-                    # If the modal flag is active, render the modal (it will block further actions until resolved)
-                    if st.session_state.confirm_navigation:
-                        self.unsaved_changes_handle()
-                        # Do not process further until modal decision is made
-                        return
+                # Process the dialog result
+                if st.session_state.confirm_navigation:
+                    self.navigate_back()
 
             # Display current directory
             st.write(f"**Current Directory:** `{st.session_state.current_path}`")
